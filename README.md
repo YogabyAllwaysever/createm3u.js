@@ -1,5 +1,6 @@
 # createm3u.js
 
+![Image](images/logo.png)
 A Node.js‑based M3U playlist generator (extended format).  
 This script recursively scans a directory, collects media files (audio/video), and generates an `.m3u` file with the following format:
 
