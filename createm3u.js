@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 // createm3u.js
 // Usage:
 //   node createm3u.js "/path/to/folder" [--music] [--seriesvideo] [--output name.m3u] [--watch] [--lang en|id|ja] [--verbose] [--v] [--about]
@@ -11,7 +13,7 @@ const fs = require('fs');
 const path = require('path');
 
 // ========== VERSION AND ABOUT ==========
-const VERSION = '1.2.0';
+const VERSION = '1.2.1';
 const ABOUT = `
 createm3u.js - M3U playlist generator
 Version: ${VERSION}
@@ -114,7 +116,6 @@ let modeLabel = 'all media';
 function t(key, ...args) {
   const dict = LANG[currentLang] || LANG.en;
   let msg = dict[key] || key;
-  // Replace %s with args
   for (let i = 0; i < args.length; i++) {
     msg = msg.replace('%s', args[i]);
   }
@@ -196,7 +197,6 @@ if (!targetDir) {
   process.exit(1);
 }
 
-// Resolve absolute path
 const baseDir = path.resolve(targetDir);
 
 if (!fs.existsSync(baseDir)) {
@@ -208,7 +208,6 @@ if (!fs.statSync(baseDir).isDirectory()) {
   process.exit(1);
 }
 
-// Determine default output file
 if (!outputFile) {
   outputFile = path.join(baseDir, 'playlist.m3u');
 } else {
@@ -216,13 +215,12 @@ if (!outputFile) {
     outputFile = path.join(baseDir, outputFile);
   }
 }
-// Create output directory if it doesn't exist
 const outDir = path.dirname(outputFile);
 if (!fs.existsSync(outDir)) {
   fs.mkdirSync(outDir, { recursive: true });
 }
 
-// ========== SCAN FUNCTION (with verbose) ==========
+// ========== SCAN FUNCTION ==========
 function scanDirectory(dir, base, extSet) {
   let results = [];
   const items = fs.readdirSync(dir, { withFileTypes: true });
@@ -243,7 +241,7 @@ function scanDirectory(dir, base, extSet) {
   return results;
 }
 
-// ========== GENERATE PLAYLIST FUNCTION ==========
+// ========== GENERATE PLAYLIST ==========
 function generatePlaylist() {
   logInfo('scanning', baseDir, modeLabel);
   let mediaFiles = scanDirectory(baseDir, baseDir, extSet);
@@ -254,7 +252,6 @@ function generatePlaylist() {
     logInfo('found', mediaFiles.length);
   }
 
-  // Sorting
   if (mode === 'video') {
     function extractNumbers(filename) {
       const name = path.basename(filename, path.extname(filename));
@@ -272,16 +269,14 @@ function generatePlaylist() {
     mediaFiles.sort((a, b) => a.localeCompare(b));
   }
 
-  // Build M3U content
   const lines = ['#EXTM3U'];
   for (const relPath of mediaFiles) {
     const title = path.basename(relPath, path.extname(relPath));
     lines.push(`#EXTINF:-1,${title}`);
     lines.push(relPath);
   }
-  if (lines.length > 1) lines.push(''); // trailing newline
+  if (lines.length > 1) lines.push('');
 
-  // Write file
   try {
     const content = lines.join('\n');
     fs.writeFileSync(outputFile, content, 'utf8');
@@ -292,7 +287,7 @@ function generatePlaylist() {
   }
 }
 
-// ========== FIRST GENERATION ==========
+// ========== FIRST RUN ==========
 generatePlaylist();
 
 // ========== WATCH MODE ==========
@@ -301,10 +296,8 @@ if (watchMode) {
   let debounceTimer = null;
   let isGenerating = false;
 
-  // Use recursive watch if available (Node 20+)
   const watcher = fs.watch(baseDir, { recursive: true }, (eventType, filename) => {
     if (isGenerating) return;
-    // Debounce: ignore rapid consecutive events
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
       debounceTimer = null;
@@ -317,15 +310,13 @@ if (watchMode) {
       } finally {
         isGenerating = false;
       }
-    }, 300); // 300ms debounce
+    }, 300);
   });
 
-  // Handle watcher errors
   watcher.on('error', (err) => {
     console.error('Watch error:', err);
   });
 
-  // Graceful shutdown
   process.on('SIGINT', () => {
     console.log('\n👋 Stopping watch mode.');
     watcher.close();
