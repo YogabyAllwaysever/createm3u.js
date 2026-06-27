@@ -1,0 +1,41 @@
+{
+  "name": "createm3u",
+  "version": "1.2.0",
+  "description": "A Node.js‑based M3U playlist generator – recursively scan directories and create extended M3U playlists",
+  "main": "createm3u.js",
+  "bin": {
+    "createm3u": "createm3u.js"
+  },
+  "preferGlobal": true,
+  "scripts": {
+    "start": "node createm3u.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "m3u",
+    "playlist",
+    "generator",
+    "cli",
+    "audio",
+    "video",
+    "scanner"
+  ],
+  "author": "YogabyAllwaysever",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YogabyAllwaysever/createm3u.js.git"
+  },
+  "bugs": {
+    "url": "https://github.com/YogabyAllwaysever/createm3u.js/issues"
+  },
+  "homepage": "https://github.com/YogabyAllwaysever/createm3u.js#readme",
+  "engines": {
+    "node": ">=10.0.0"
+  },
+  "files": [
+    "createm3u.js",
+    "README.md",
+    "images/"
+  ]
+}

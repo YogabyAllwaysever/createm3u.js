@@ -23,7 +23,35 @@ series/ep01.mp4
 
 ---
 
-## 🚀 Usage
+## 📥 Installation
+
+You can install **createm3u** globally via npm (recommended for command‑line use):
+
+```bash
+npm install -g createm3u
+```
+
+After installation, the createm3u command will be available system‑wide.
+
+Alternatively, you can run the script directly without installing (clone or download the file):
+
+```bash
+node createm3u.js <directory> [options]
+```
+
+Note: If you install globally, replace node createm3u.js with createm3u in all examples below.
+
+---
+
+🚀 Usage
+
+Global installation (recommended)
+
+```bash
+createm3u <directory> [options]
+```
+
+Direct execution (without install)
 
 ```bash
 node createm3u.js <directory> [options]
@@ -48,31 +76,32 @@ Option Description
 
 1. Create a music playlist from a Spotify folder
    ```bash
-   node createm3u.js "/storage/emulated/0/music/spotify/" --music --output playlist.m3u
+   createm3u "/storage/emulated/0/music/spotify/" --music --output playlist.m3u
    ```
+   (or with node createm3u.js if not installed)
 2. Create a TV series playlist (sorted by episode number)
    ```bash
-   node createm3u.js "/storage/video/series" --seriesvideo -o series.m3u
+   createm3u "/storage/video/series" --seriesvideo -o series.m3u
    ```
 3. Create a mixed playlist (audio + video) with default name
    ```bash
-   node createm3u.js "/home/user/media"
+   createm3u "/home/user/media"
    ```
 4. Watch a folder and regenerate playlist on changes
    ```bash
-   node createm3u.js "/home/user/music" --music --watch --lang id
+   createm3u "/home/user/music" --music --watch --lang id
    ```
 5. Show verbose output while scanning
    ```bash
-   node createm3u.js "/home/user/videos" --seriesvideo --verbose
+   createm3u "/home/user/videos" --seriesvideo --verbose
    ```
 6. Show version
    ```bash
-   node createm3u.js --v
+   createm3u --v
    ```
 7. Show help / about
    ```bash
-   node createm3u.js --about
+   createm3u --about
    ```
 
 ---
