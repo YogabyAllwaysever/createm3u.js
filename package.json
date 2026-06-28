@@ -1,7 +1,7 @@
 {
   "name": "createm3u",
-  "version": "1.2.1",
-  "description": "A Node.js‑based M3U playlist generator – recursively scan directories and create extended M3U playlists",
+  "version": "1.3.0",
+  "description": "A Node.js‑based M3U playlist generator – recursively scan directories and create extended M3U playlists with audio, video, or anime sorting",
   "main": "createm3u.js",
   "bin": {
     "createm3u": "createm3u.js"
@@ -18,7 +18,9 @@
     "cli",
     "audio",
     "video",
-    "scanner"
+    "anime",
+    "scanner",
+    "recursive"
   ],
   "author": "YogabyAllwaysever",
   "license": "MIT",
