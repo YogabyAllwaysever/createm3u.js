@@ -2,10 +2,11 @@
 
 // createm3u.js
 // Usage:
-//   node createm3u.js "/path/to/folder" [--music] [--seriesvideo] [--output name.m3u] [--watch] [--lang en|id|ja] [--verbose] [--v] [--about]
+//   node createm3u.js "/path/to/folder" [--music] [--seriesvideo] [--anime] [--output name.m3u] [--watch] [--lang en|id|ja] [--verbose] [--v] [--about]
 // Examples:
 //   node createm3u.js "/storage/emulated/0/music/spotify/" --music --output playlist.m3u
 //   node createm3u.js "/storage/video/series" --seriesvideo -o series.m3u --watch --lang id
+//   node createm3u.js "/storage/anime" --anime -o anime.m3u
 //   node createm3u.js --v
 //   node createm3u.js --about
 
@@ -13,7 +14,7 @@ const fs = require('fs');
 const path = require('path');
 
 // ========== VERSION AND ABOUT ==========
-const VERSION = '1.2.1';
+const VERSION = '1.3.0';
 const ABOUT = `
 createm3u.js - M3U playlist generator
 Version: ${VERSION}
@@ -24,7 +25,8 @@ Purpose:
 
 Modes:
   --music          : include only audio files (mp3, flac, etc.)
-  --seriesvideo    : include only video files (mp4, avi, etc.) and sort by episode number
+  --seriesvideo    : include only video files and sort by episode number
+  --anime          : include only video files, sort episodes first, then NCOP, then NCED
   (no mode)        : include all media (audio + video)
 
 Options:
@@ -108,7 +110,7 @@ let verbose = false;
 let watchMode = false;
 let targetDir = null;
 let outputFile = null;
-let mode = 'all'; // 'all', 'audio', 'video'
+let mode = 'all'; // 'all', 'audio', 'video', 'anime'
 let extSet = ALL_MEDIA_EXTS;
 let modeLabel = 'all media';
 
@@ -153,6 +155,10 @@ for (let i = 0; i < args.length; i++) {
     mode = 'video';
     extSet = VIDEO_EXTS;
     modeLabel = 'video';
+  } else if (arg === '--anime') {
+    mode = 'anime';
+    extSet = VIDEO_EXTS;
+    modeLabel = 'anime';
   } else if (arg === '--output' || arg === '-o') {
     if (i + 1 < args.length) {
       outputFile = args[++i];
@@ -252,7 +258,9 @@ function generatePlaylist() {
     logInfo('found', mediaFiles.length);
   }
 
+  // Sorting
   if (mode === 'video') {
+    // Existing seriesvideo sorting by last number
     function extractNumbers(filename) {
       const name = path.basename(filename, path.extname(filename));
       const matches = name.match(/\d+/g);
@@ -265,7 +273,41 @@ function generatePlaylist() {
       if (numA !== null && numB !== null) return numA - numB;
       return a.localeCompare(b);
     });
+  } else if (mode === 'anime') {
+    // Custom anime sorting: episodes first, then NCOP, then NCED
+    function getCategoryAndNumber(filename) {
+      const name = path.basename(filename, path.extname(filename)).toLowerCase();
+      let priority = 0; // 0: episode, 1: NCOP, 2: NCED
+      if (name.includes('nced')) {
+        priority = 2;
+      } else if (name.includes('ncop')) {
+        priority = 1;
+      }
+      // Extract last number
+      const matches = name.match(/\d+/g);
+      let num = 0;
+      if (matches) {
+        num = parseInt(matches[matches.length - 1], 10);
+      }
+      return { priority, num };
+    }
+
+    mediaFiles.sort((a, b) => {
+      const infoA = getCategoryAndNumber(a);
+      const infoB = getCategoryAndNumber(b);
+      // Sort by priority first
+      if (infoA.priority !== infoB.priority) {
+        return infoA.priority - infoB.priority;
+      }
+      // Then by number (ascending)
+      if (infoA.num !== infoB.num) {
+        return infoA.num - infoB.num;
+      }
+      // Fallback to alphabetical
+      return a.localeCompare(b);
+    });
   } else {
+    // Default: alphabetical
     mediaFiles.sort((a, b) => a.localeCompare(b));
   }
 
