@@ -2,10 +2,10 @@
 
 // createm3u.js
 // Usage:
-//   node createm3u.js "/path/to/folder" [--music] [--seriesvideo] [--anime] [--output name.m3u] [--watch] [--lang en|id|ja] [--verbose] [--v] [--about]
+//   node createm3u.js "/path/to/folder" [--music] [--seriesvideo] [--anime] [--output name.m3u] [--watch] [--verbose] [--v] [--about]
 // Examples:
 //   node createm3u.js "/storage/emulated/0/music/spotify/" --music --output playlist.m3u
-//   node createm3u.js "/storage/video/series" --seriesvideo -o series.m3u --watch --lang id
+//   node createm3u.js "/storage/video/series" --seriesvideo -o series.m3u --watch
 //   node createm3u.js "/storage/anime" --anime -o anime.m3u
 //   node createm3u.js --v
 //   node createm3u.js --about
@@ -32,7 +32,6 @@ Modes:
 Options:
   --output, -o <name>   : specify output file name (default: playlist.m3u in source directory)
   --watch               : watch directory for changes and auto-regenerate playlist
-  --lang <en|id|ja>     : language for messages (default: en)
   --verbose             : show detailed logs (each file scanned)
   --v, --version        : show version
   --about               : show information about this script
@@ -46,54 +45,33 @@ License: MIT
 https://github.com/YogabyAllwaysever/createm3u.js
 `;
 
-// ========== TRANSLATIONS ==========
-const LANG = {
-  en: {
-    scanning: 'Scanning directory: %s (mode: %s)',
-    found: 'Found %d files.',
-    noFiles: 'No matching files found.',
-    created: '✅ Standard M3U playlist created: %s',
-    writeError: '❌ Failed to write file: %s',
-    dirNotFound: 'Directory not found: %s',
-    notDir: 'Path is not a directory: %s',
-    unknownArg: 'Unknown argument: %s',
-    missingDir: 'Usage: node createm3u.js <directory> [options]',
-    watching: '👀 Watching for changes (press Ctrl+C to stop)...',
-    changeDetected: 'Change detected, regenerating playlist...',
-    verboseFile: '  + %s',
-    verboseDir: '  -> scanning subfolder: %s',
-  },
-  id: {
-    scanning: 'Memindai direktori: %s (mode: %s)',
-    found: 'Ditemukan %d file.',
-    noFiles: 'Tidak ada file yang cocok.',
-    created: '✅ Playlist M3U standar dibuat: %s',
-    writeError: '❌ Gagal menulis file: %s',
-    dirNotFound: 'Direktori tidak ditemukan: %s',
-    notDir: 'Path bukan direktori: %s',
-    unknownArg: 'Argumen tidak dikenal: %s',
-    missingDir: 'Cara pakai: node createm3u.js <direktori> [opsi]',
-    watching: '👀 Memantau perubahan (tekan Ctrl+C untuk berhenti)...',
-    changeDetected: 'Perubahan terdeteksi, membuat ulang playlist...',
-    verboseFile: '  + %s',
-    verboseDir: '  -> memindai subfolder: %s',
-  },
-  ja: {
-    scanning: 'ディレクトリをスキャン中: %s (モード: %s)',
-    found: '%d ファイルが見つかりました。',
-    noFiles: '一致するファイルがありません。',
-    created: '✅ 標準M3Uプレイリストを作成しました: %s',
-    writeError: '❌ ファイルの書き込みに失敗しました: %s',
-    dirNotFound: 'ディレクトリが見つかりません: %s',
-    notDir: 'パスはディレクトリではありません: %s',
-    unknownArg: '不明な引数: %s',
-    missingDir: '使用方法: node createm3u.js <ディレクトリ> [オプション]',
-    watching: '👀 変更を監視中 (Ctrl+Cで停止)...',
-    changeDetected: '変更を検出、プレイリストを再生成中...',
-    verboseFile: '  + %s',
-    verboseDir: '  -> サブフォルダをスキャン: %s',
+// ========== HELPER FOR FORMATTING MESSAGES ==========
+function formatMessage(msg, ...args) {
+  for (let i = 0; i < args.length; i++) {
+    msg = msg.replace('%s', args[i]);
   }
-};
+  return msg;
+}
+
+let verbose = false;
+
+function logInfo(msg, ...args) {
+  console.log(formatMessage(msg, ...args));
+}
+
+function logVerbose(msg, ...args) {
+  if (verbose) {
+    console.log(formatMessage(msg, ...args));
+  }
+}
+
+function logWarn(msg, ...args) {
+  console.warn(formatMessage(msg, ...args));
+}
+
+function logError(msg, ...args) {
+  console.error(formatMessage(msg, ...args));
+}
 
 // ========== EXTENSION CONFIGURATION ==========
 const AUDIO_EXTS = new Set([
@@ -105,42 +83,12 @@ const VIDEO_EXTS = new Set([
 const ALL_MEDIA_EXTS = new Set([...AUDIO_EXTS, ...VIDEO_EXTS]);
 
 // ========== GLOBALS FOR OPTIONS ==========
-let currentLang = 'en';
-let verbose = false;
-let watchMode = false;
 let targetDir = null;
 let outputFile = null;
 let mode = 'all'; // 'all', 'audio', 'video', 'anime'
 let extSet = ALL_MEDIA_EXTS;
 let modeLabel = 'all media';
-
-// ========== TRANSLATION HELPER ==========
-function t(key, ...args) {
-  const dict = LANG[currentLang] || LANG.en;
-  let msg = dict[key] || key;
-  for (let i = 0; i < args.length; i++) {
-    msg = msg.replace('%s', args[i]);
-  }
-  return msg;
-}
-
-function logInfo(key, ...args) {
-  console.log(t(key, ...args));
-}
-
-function logVerbose(key, ...args) {
-  if (verbose) {
-    console.log(t(key, ...args));
-  }
-}
-
-function logWarn(key, ...args) {
-  console.warn(t(key, ...args));
-}
-
-function logError(key, ...args) {
-  console.error(t(key, ...args));
-}
+let watchMode = false;
 
 // ========== PARSE ARGUMENTS ==========
 const args = process.argv.slice(2);
@@ -163,24 +111,11 @@ for (let i = 0; i < args.length; i++) {
     if (i + 1 < args.length) {
       outputFile = args[++i];
     } else {
-      logError('writeError', '--output requires a filename.');
+      logError('❌ --output requires a filename.');
       process.exit(1);
     }
   } else if (arg === '--watch') {
     watchMode = true;
-  } else if (arg === '--lang') {
-    if (i + 1 < args.length) {
-      const l = args[++i];
-      if (l in LANG) {
-        currentLang = l;
-      } else {
-        logError('unknownArg', l);
-        process.exit(1);
-      }
-    } else {
-      logError('writeError', '--lang requires en, id, or ja.');
-      process.exit(1);
-    }
   } else if (arg === '--verbose') {
     verbose = true;
   } else if (arg === '--v' || arg === '--version') {
@@ -192,13 +127,13 @@ for (let i = 0; i < args.length; i++) {
   } else if (!targetDir) {
     targetDir = arg;
   } else {
-    logError('unknownArg', arg);
+    logError('Unknown argument: %s', arg);
     process.exit(1);
   }
 }
 
 if (!targetDir) {
-  logError('missingDir');
+  logError('Usage: node createm3u.js <directory> [options]');
   console.error('Or: node createm3u.js --v / --about');
   process.exit(1);
 }
@@ -206,11 +141,11 @@ if (!targetDir) {
 const baseDir = path.resolve(targetDir);
 
 if (!fs.existsSync(baseDir)) {
-  logError('dirNotFound', baseDir);
+  logError('Directory not found: %s', baseDir);
   process.exit(1);
 }
 if (!fs.statSync(baseDir).isDirectory()) {
-  logError('notDir', baseDir);
+  logError('Path is not a directory: %s', baseDir);
   process.exit(1);
 }
 
@@ -233,13 +168,13 @@ function scanDirectory(dir, base, extSet) {
   for (const item of items) {
     const fullPath = path.join(dir, item.name);
     if (item.isDirectory()) {
-      logVerbose('verboseDir', fullPath);
+      logVerbose('  -> scanning subfolder: %s', fullPath);
       results = results.concat(scanDirectory(fullPath, base, extSet));
     } else if (item.isFile()) {
       const ext = path.extname(item.name).toLowerCase();
       if (extSet.has(ext)) {
         const rel = path.relative(base, fullPath);
-        logVerbose('verboseFile', rel);
+        logVerbose('  + %s', rel);
         results.push(rel);
       }
     }
@@ -249,13 +184,13 @@ function scanDirectory(dir, base, extSet) {
 
 // ========== GENERATE PLAYLIST ==========
 function generatePlaylist() {
-  logInfo('scanning', baseDir, modeLabel);
+  logInfo('Scanning directory: %s (mode: %s)', baseDir, modeLabel);
   let mediaFiles = scanDirectory(baseDir, baseDir, extSet);
 
   if (mediaFiles.length === 0) {
-    logWarn('noFiles');
+    logWarn('No matching files found.');
   } else {
-    logInfo('found', mediaFiles.length);
+    logInfo('Found %s files.', mediaFiles.length);
   }
 
   // Sorting
@@ -322,9 +257,9 @@ function generatePlaylist() {
   try {
     const content = lines.join('\n');
     fs.writeFileSync(outputFile, content, 'utf8');
-    logInfo('created', outputFile);
+    logInfo('✅ Standard M3U playlist created: %s', outputFile);
   } catch (err) {
-    logError('writeError', err.message);
+    logError('❌ Failed to write file: %s', err.message);
     process.exit(1);
   }
 }
@@ -334,7 +269,7 @@ generatePlaylist();
 
 // ========== WATCH MODE ==========
 if (watchMode) {
-  logInfo('watching');
+  logInfo('👀 Watching for changes (press Ctrl+C to stop)...');
   let debounceTimer = null;
   let isGenerating = false;
 
@@ -343,12 +278,12 @@ if (watchMode) {
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
       debounceTimer = null;
-      logInfo('changeDetected');
+      logInfo('Change detected, regenerating playlist...');
       isGenerating = true;
       try {
         generatePlaylist();
       } catch (e) {
-        logError('writeError', e.message);
+        logError('❌ Failed to write file: %s', e.message);
       } finally {
         isGenerating = false;
       }
