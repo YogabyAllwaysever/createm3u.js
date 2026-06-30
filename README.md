@@ -65,7 +65,6 @@ node createm3u.js <directory> [options]
 | *(no mode)* | Include **all media files** (audio + video). Sorted alphabetically. |
 | `--output <name>`, `-o <name>` | Specify output filename (default: `playlist.m3u` in the source directory). |
 | `--watch` | Watch the directory for changes and automatically regenerate the playlist (debounced by 300ms). Requires Node.js 20+ for recursive watching. |
-| `--lang <en\|id\|ja>` | Language for console messages (default: `en`). |
 | `--verbose` | Show detailed logs for each scanned file and subfolder. |
 | `--v`, `--version` | Display script version. |
 | `--about` | Display full information about the script (author, license, purpose, etc.). |
@@ -96,7 +95,7 @@ node createm3u.js <directory> [options]
 
 5. **Watch a folder and regenerate playlist on changes**
    ```bash
-   createm3u "/home/user/music" --music --watch --lang id
+   createm3u "/home/user/music" --music --watch
    ```
 
 6. **Show verbose output while scanning**
@@ -172,6 +171,8 @@ anime/nced01.mkv
 - **Watch mode:** Uses `fs.watch` with `recursive: true` (available in Node.js 20+). On older versions, the `--watch` flag may not work recursively.  
 - **License:** MIT (see `--about`)
 
+> **Note on localization:** The language selection feature (`--lang`) was removed in v1.4.0 to simplify the codebase and reduce maintenance overhead. All console messages are now in English.
+
 ---
 
 ## ❓ FAQ
@@ -187,9 +188,6 @@ A: Yes, use `--output /path/outside/playlist.m3u` (the destination folder will b
 
 **Q: How does the episode sorting work?**  
 A: It extracts the **last group of digits** from the filename (e.g., `s01e05` → `5`, `Episode 12` → `12`) and sorts by that number. If no digits are found, alphabetical order is used.
-
-**Q: What languages are supported?**  
-A: English (`en`), Indonesian (`id`), and Japanese (`ja`). Use `--lang` to switch.
 
 **Q: What is the difference between `--seriesvideo` and `--anime`?**  
 A: `--seriesvideo` sorts all videos by episode number only. `--anime` additionally groups files into episodes, NCOP, and NCED, placing NCOP and NCED after all episodes.

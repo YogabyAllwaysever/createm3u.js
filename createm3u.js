@@ -2,11 +2,12 @@
 
 // createm3u.js
 // Usage:
-//   node createm3u.js "/path/to/folder" [--music] [--seriesvideo] [--anime] [--output name.m3u] [--watch] [--verbose] [--v] [--about]
+//   node createm3u.js "/path/to/folder" [--music] [--video] [--seriesvideo] [--anime] [--output name.m3u] [--watch] [--verbose] [--v] [--about] [--shuffle] [--order name-asc|name-desc|num-asc|num-desc]
 // Examples:
-//   node createm3u.js "/storage/emulated/0/music/spotify/" --music --output playlist.m3u
+//   node createm3u.js "/storage/emulated/0/music/spotify/" --music --order num-asc --output playlist.m3u
 //   node createm3u.js "/storage/video/series" --seriesvideo -o series.m3u --watch
 //   node createm3u.js "/storage/anime" --anime -o anime.m3u
+//   node createm3u.js "/storage/videos" --video --shuffle -o random.m3u
 //   node createm3u.js --v
 //   node createm3u.js --about
 
@@ -14,7 +15,7 @@ const fs = require('fs');
 const path = require('path');
 
 // ========== VERSION AND ABOUT ==========
-const VERSION = '1.3.0';
+const VERSION = '1.4.0';
 const ABOUT = `
 createm3u.js - M3U playlist generator
 Version: ${VERSION}
@@ -23,11 +24,20 @@ Purpose:
   Recursively scan a directory and generate an M3U playlist file
   in extended format (#EXTM3U and #EXTINF).
 
-Modes:
+Modes (file filtering):
   --music          : include only audio files (mp3, flac, etc.)
-  --seriesvideo    : include only video files and sort by episode number
-  --anime          : include only video files, sort episodes first, then NCOP, then NCED
+  --video          : include only video files (sorting can be customized)
+  --seriesvideo    : include only video files, sort by episode number (ignores --shuffle/--order)
+  --anime          : include only video files, sort episodes first, then NCOP, then NCED (ignores --shuffle/--order)
   (no mode)        : include all media (audio + video)
+
+Sorting options (for --music, --video, and default mode only):
+  --shuffle        : randomize order (overrides --order)
+  --order <value>  : sorting order, values:
+                     name-asc   (alphabetical A-Z, default)
+                     name-desc  (alphabetical Z-A)
+                     num-asc    (by last number in filename, ascending)
+                     num-desc   (by last number in filename, descending)
 
 Options:
   --output, -o <name>   : specify output file name (default: playlist.m3u in source directory)
@@ -85,10 +95,14 @@ const ALL_MEDIA_EXTS = new Set([...AUDIO_EXTS, ...VIDEO_EXTS]);
 // ========== GLOBALS FOR OPTIONS ==========
 let targetDir = null;
 let outputFile = null;
-let mode = 'all'; // 'all', 'audio', 'video', 'anime'
+let mode = 'all'; // 'all', 'audio', 'video', 'anime', 'seriesvideo'
 let extSet = ALL_MEDIA_EXTS;
 let modeLabel = 'all media';
 let watchMode = false;
+
+// Sorting related
+let shuffleMode = false;
+let orderMode = 'name-asc'; // default
 
 // ========== PARSE ARGUMENTS ==========
 const args = process.argv.slice(2);
@@ -99,10 +113,14 @@ for (let i = 0; i < args.length; i++) {
     mode = 'audio';
     extSet = AUDIO_EXTS;
     modeLabel = 'audio';
-  } else if (arg === '--seriesvideo') {
+  } else if (arg === '--video') {
     mode = 'video';
     extSet = VIDEO_EXTS;
     modeLabel = 'video';
+  } else if (arg === '--seriesvideo') {
+    mode = 'seriesvideo';
+    extSet = VIDEO_EXTS;
+    modeLabel = 'seriesvideo';
   } else if (arg === '--anime') {
     mode = 'anime';
     extSet = VIDEO_EXTS;
@@ -118,6 +136,21 @@ for (let i = 0; i < args.length; i++) {
     watchMode = true;
   } else if (arg === '--verbose') {
     verbose = true;
+  } else if (arg === '--shuffle') {
+    shuffleMode = true;
+  } else if (arg === '--order') {
+    if (i + 1 < args.length) {
+      const val = args[++i];
+      if (['name-asc', 'name-desc', 'num-asc', 'num-desc'].includes(val)) {
+        orderMode = val;
+      } else {
+        logError('❌ Invalid --order value. Use: name-asc, name-desc, num-asc, num-desc');
+        process.exit(1);
+      }
+    } else {
+      logError('❌ --order requires a value.');
+      process.exit(1);
+    }
   } else if (arg === '--v' || arg === '--version') {
     console.log(`createm3u.js version ${VERSION}`);
     process.exit(0);
@@ -182,6 +215,14 @@ function scanDirectory(dir, base, extSet) {
   return results;
 }
 
+// ========== HELPER: EXTRACT LAST NUMBER FROM FILENAME ==========
+function extractLastNumber(filename) {
+  const name = path.basename(filename, path.extname(filename));
+  const matches = name.match(/\d+/g);
+  if (!matches) return 0;
+  return parseInt(matches[matches.length - 1], 10);
+}
+
 // ========== GENERATE PLAYLIST ==========
 function generatePlaylist() {
   logInfo('Scanning directory: %s (mode: %s)', baseDir, modeLabel);
@@ -193,58 +234,64 @@ function generatePlaylist() {
     logInfo('Found %s files.', mediaFiles.length);
   }
 
-  // Sorting
-  if (mode === 'video') {
-    // Existing seriesvideo sorting by last number
-    function extractNumbers(filename) {
-      const name = path.basename(filename, path.extname(filename));
-      const matches = name.match(/\d+/g);
-      if (!matches) return null;
-      return parseInt(matches[matches.length - 1], 10);
-    }
-    mediaFiles.sort((a, b) => {
-      const numA = extractNumbers(a);
-      const numB = extractNumbers(b);
-      if (numA !== null && numB !== null) return numA - numB;
-      return a.localeCompare(b);
-    });
-  } else if (mode === 'anime') {
-    // Custom anime sorting: episodes first, then NCOP, then NCED
-    function getCategoryAndNumber(filename) {
-      const name = path.basename(filename, path.extname(filename)).toLowerCase();
-      let priority = 0; // 0: episode, 1: NCOP, 2: NCED
-      if (name.includes('nced')) {
-        priority = 2;
-      } else if (name.includes('ncop')) {
-        priority = 1;
-      }
-      // Extract last number
-      const matches = name.match(/\d+/g);
-      let num = 0;
-      if (matches) {
-        num = parseInt(matches[matches.length - 1], 10);
-      }
-      return { priority, num };
-    }
+  // ========== SORTING LOGIC ==========
+  const isSpecialMode = (mode === 'anime' || mode === 'seriesvideo');
 
-    mediaFiles.sort((a, b) => {
-      const infoA = getCategoryAndNumber(a);
-      const infoB = getCategoryAndNumber(b);
-      // Sort by priority first
-      if (infoA.priority !== infoB.priority) {
-        return infoA.priority - infoB.priority;
+  if (isSpecialMode) {
+    // --- LOCK: Special modes (ANIME & SERIESVIDEO) ignore shuffle/order ---
+    if (mode === 'seriesvideo') {
+      mediaFiles.sort((a, b) => {
+        const numA = extractLastNumber(a);
+        const numB = extractLastNumber(b);
+        if (numA !== 0 && numB !== 0) return numA - numB;
+        return a.localeCompare(b);
+      });
+    } else if (mode === 'anime') {
+      function getCategoryAndNumber(filename) {
+        const name = path.basename(filename, path.extname(filename)).toLowerCase();
+        let priority = 0; // 0: episode, 1: NCOP, 2: NCED
+        if (name.includes('nced')) priority = 2;
+        else if (name.includes('ncop')) priority = 1;
+        const num = extractLastNumber(filename);
+        return { priority, num };
       }
-      // Then by number (ascending)
-      if (infoA.num !== infoB.num) {
-        return infoA.num - infoB.num;
-      }
-      // Fallback to alphabetical
-      return a.localeCompare(b);
-    });
+      mediaFiles.sort((a, b) => {
+        const infoA = getCategoryAndNumber(a);
+        const infoB = getCategoryAndNumber(b);
+        if (infoA.priority !== infoB.priority) return infoA.priority - infoB.priority;
+        if (infoA.num !== infoB.num) return infoA.num - infoB.num;
+        return a.localeCompare(b);
+      });
+    }
   } else {
-    // Default: alphabetical
-    mediaFiles.sort((a, b) => a.localeCompare(b));
+    // --- GENERIC MODES (all, audio, video) use shuffle or order ---
+    if (shuffleMode) {
+      // Fisher-Yates shuffle
+      for (let i = mediaFiles.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [mediaFiles[i], mediaFiles[j]] = [mediaFiles[j], mediaFiles[i]];
+      }
+    } else {
+      // Apply --order
+      switch (orderMode) {
+        case 'name-asc':
+          mediaFiles.sort((a, b) => a.localeCompare(b));
+          break;
+        case 'name-desc':
+          mediaFiles.sort((a, b) => b.localeCompare(a));
+          break;
+        case 'num-asc':
+          mediaFiles.sort((a, b) => extractLastNumber(a) - extractLastNumber(b));
+          break;
+        case 'num-desc':
+          mediaFiles.sort((a, b) => extractLastNumber(b) - extractLastNumber(a));
+          break;
+        default:
+          mediaFiles.sort((a, b) => a.localeCompare(b));
+      }
+    }
   }
+  // ========== END SORTING ==========
 
   const lines = ['#EXTM3U'];
   for (const relPath of mediaFiles) {
@@ -257,7 +304,7 @@ function generatePlaylist() {
   try {
     const content = lines.join('\n');
     fs.writeFileSync(outputFile, content, 'utf8');
-    logInfo('✅ Standard M3U playlist created: %s', outputFile);
+    logInfo('✅ M3U playlist created: %s', outputFile);
   } catch (err) {
     logError('❌ Failed to write file: %s', err.message);
     process.exit(1);
